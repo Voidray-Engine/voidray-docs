@@ -17,8 +17,9 @@ Create a new file called `my_first_game.py` and start with this foundation:
 
 ```python
 import voidray
-from voidray import Scene, Sprite, Vector2, Keys, BoxCollider
-from voidray.graphics.renderer import Color
+from voidray import Scene, GameObject, Vector2, Keys, BoxCollider
+from voidray.graphics.sprite import Sprite
+from voidray.utils.color import Color
 import random
 
 # We'll build our game step by step
@@ -43,11 +44,14 @@ if __name__ == "__main__":
 Let's create a player character you can control:
 
 ```python
-class Player(Sprite):
+class Player(GameObject):
     def __init__(self):
         super().__init__("Player")
-        # Create a blue square (our player!)
-        self.create_colored_rect(40, 40, Color.BLUE)
+        # Create a blue square sprite
+        self.sprite = Sprite()
+        self.sprite.create_colored_rect(40, 40, Color.BLUE)
+        self.add_component(self.sprite)
+        
         self.speed = 300  # How fast the player moves
         self.score = 0    # Player's score
         
@@ -103,11 +107,14 @@ class Player(Sprite):
 Now let's create coins that fall from the sky:
 
 ```python
-class Coin(Sprite):
+class Coin(GameObject):
     def __init__(self):
         super().__init__("Coin")
-        # Create a yellow circle (our coin!)
-        self.create_colored_circle(12, Color.YELLOW)
+        # Create a yellow circle sprite
+        self.sprite = Sprite()
+        self.sprite.create_colored_circle(12, Color.YELLOW)
+        self.add_component(self.sprite)
+        
         self.fall_speed = random.randint(100, 250)  # Random falling speed
         
         # Add collision detection
@@ -227,14 +234,18 @@ Here's your complete first game! Put it all together:
 
 ```python
 import voidray
-from voidray import Scene, Sprite, Vector2, Keys, BoxCollider
-from voidray.graphics.renderer import Color
+from voidray import Scene, GameObject, Vector2, Keys, BoxCollider
+from voidray.graphics.sprite import Sprite
+from voidray.utils.color import Color
 import random
 
-class Player(Sprite):
+class Player(GameObject):
     def __init__(self):
         super().__init__("Player")
-        self.create_colored_rect(40, 40, Color.BLUE)
+        self.sprite = Sprite()
+        self.sprite.create_colored_rect(40, 40, Color.BLUE)
+        self.add_component(self.sprite)
+        
         self.speed = 300
         self.score = 0
         
@@ -275,10 +286,13 @@ class Player(Sprite):
             other.game_object.destroy()
             print(f"Score: {self.score}")
 
-class Coin(Sprite):
+class Coin(GameObject):
     def __init__(self):
         super().__init__("Coin")
-        self.create_colored_circle(12, Color.YELLOW)
+        self.sprite = Sprite()
+        self.sprite.create_colored_circle(12, Color.YELLOW)
+        self.add_component(self.sprite)
+        
         self.fall_speed = random.randint(100, 250)
         
         self.collider = BoxCollider(24, 24)

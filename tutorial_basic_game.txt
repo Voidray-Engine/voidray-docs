@@ -1,460 +1,250 @@
+"""
+VoidRay Tutorial: Creating Your First Game
+==========================================
 
-VoidRay Game Engine - Complete Game Tutorial
-============================================
+This tutorial will guide you through creating a complete game from scratch using VoidRay. 
+We'll build a physics-based collection game where the player moves around collecting coins 
+while avoiding bouncing enemies.
+"""
 
-This tutorial will guide you through creating a complete game from scratch using VoidRay. We'll build a physics-based collection game where the player moves around collecting coins while avoiding bouncing enemies.
-
-WHAT WE'LL BUILD
-===============
-- A player character that moves with keyboard input
-- Physics-based enemies that bounce around the screen
-- Collectible coins with collision detection
-- Score tracking and particle effects
-- Game over and restart functionality
-- Proper scene management
-
-STEP 1: PROJECT SETUP
-=====================
-
-Create a new file called `collection_game.py` and start with this structure:
-
-```python
 import voidray
-from voidray import Scene, Sprite, Vector2, Keys, BoxCollider, CircleCollider, Rigidbody
+from voidray import Scene, Sprite, Vector2, Component
 from voidray.graphics.renderer import Color
+from voidray.physics import Rigidbody, BoxCollider
+from voidray.input import Keys
 import random
-import math
 
-# Game configuration
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
-PLAYER_SPEED = 250
-ENEMY_COUNT = 4
-COIN_COUNT = 8
+class PlayerController(Component):
+    """Player movement component"""
 
-class Player(Sprite):
-    pass  # We'll implement this
+    def __init__(self, speed=200):
+        super().__init__()
+        self.speed = speed
+        self.rigidbody = None
 
-class Enemy(Sprite):
-    pass  # We'll implement this
+    def start(self):
+        self.rigidbody = self.game_object.get_component(Rigidbody)
 
-class Coin(Sprite):
-    pass  # We'll implement this
-
-class GameScene(Scene):
-    pass  # We'll implement this
-
-def main():
-    voidray.configure(SCREEN_WIDTH, SCREEN_HEIGHT, "Collection Game", 60)
-    voidray.on_init(init_game)
-    voidray.start()
-
-if __name__ == "__main__":
-    main()
-```
-
-STEP 2: CREATE THE PLAYER
-=========================
-
-The player will be a blue square that moves with arrow keys:
-
-```python
-class Player(Sprite):
-    def __init__(self):
-        super().__init__("Player")
-        self.create_colored_rect(30, 30, Color.BLUE)
-        self.speed = PLAYER_SPEED
-        self.score = 0
-        self.health = 3
-        
-        # Add collision detection
-        self.collider = BoxCollider(30, 30)
-        self.collider.on_collision = self.on_collision
-        self.add_component(self.collider)
-    
     def update(self, delta_time):
-        super().update(delta_time)
-        
-        # Get input
-        input_manager = voidray.get_engine().input_manager
-        velocity = Vector2.zero()
-        
-        # Movement controls
-        if input_manager.is_key_pressed(Keys.LEFT):
-            velocity.x = -self.speed
-        if input_manager.is_key_pressed(Keys.RIGHT):
-            velocity.x = self.speed
-        if input_manager.is_key_pressed(Keys.UP):
-            velocity.y = -self.speed
-        if input_manager.is_key_pressed(Keys.DOWN):
-            velocity.y = self.speed
-        
+        if not self.rigidbody:
+            return
+
+        input_mgr = voidray.get_engine().input_manager
+
+        # Get movement input
+        movement = Vector2(0, 0)
+        if input_mgr.is_key_pressed(Keys.A) or input_mgr.is_key_pressed(Keys.LEFT):
+            movement.x = -1
+        if input_mgr.is_key_pressed(Keys.D) or input_mgr.is_key_pressed(Keys.RIGHT):
+            movement.x = 1
+        if input_mgr.is_key_pressed(Keys.W) or input_mgr.is_key_pressed(Keys.UP):
+            movement.y = -1
+        if input_mgr.is_key_pressed(Keys.S) or input_mgr.is_key_pressed(Keys.DOWN):
+            movement.y = 1
+
         # Apply movement
-        self.transform.position += velocity * delta_time
-        
-        # Keep player on screen
-        engine = voidray.get_engine()
-        pos = self.transform.position
-        pos.x = max(15, min(engine.width - 15, pos.x))
-        pos.y = max(15, min(engine.height - 15, pos.y))
-    
-    def on_collision(self, other, collision_info):
-        """Handle collisions with other objects."""
-        obj_name = other.game_object.name
-        
-        if "Coin" in obj_name:
-            # Collect coin
-            self.score += 10
-            other.game_object.destroy()
-            print(f"Coin collected! Score: {self.score}")
-            
-        elif "Enemy" in obj_name:
-            # Take damage
-            self.health -= 1
-            print(f"Hit by enemy! Health: {self.health}")
-            
-            # Push enemy away
-            enemy_rb = other.game_object.get_component(Rigidbody)
-            if enemy_rb:
-                push_dir = (other.game_object.transform.position - 
-                          self.transform.position).normalized()
-                enemy_rb.add_impulse(push_dir * 400)
-            
-            # Check game over
-            if self.health <= 0:
-                print("Game Over!")
-                # We'll add proper game over handling later
-```
+        if movement.magnitude() > 0:
+            movement = movement.normalized() * self.speed
+            self.rigidbody.velocity = movement
 
-STEP 3: CREATE PHYSICS ENEMIES
-==============================
+class CoinCollector(Component):
+    """Handles coin collection"""
 
-Enemies will be red circles that bounce around using physics:
-
-```python
-class Enemy(Sprite):
     def __init__(self):
-        super().__init__("Enemy")
-        self.create_colored_circle(15, Color.RED)
-        
-        # Add physics
-        self.rigidbody = Rigidbody()
-        self.rigidbody.set_mass(0.8)
-        self.rigidbody.set_bounciness(0.9)  # Very bouncy
-        self.rigidbody.set_drag(0.1)        # Light drag
-        self.add_component(self.rigidbody)
-        
-        # Add collision
-        self.collider = CircleCollider(15)
-        self.collider.on_collision = self.on_collision
-        self.add_component(self.collider)
-        
-        # Give random starting velocity
-        angle = random.uniform(0, 2 * math.pi)
-        speed = random.uniform(100, 200)
-        velocity = Vector2(
-            math.cos(angle) * speed,
-            math.sin(angle) * speed
-        )
-        self.rigidbody.set_velocity(velocity)
-    
+        super().__init__()
+        self.score = 0
+
+    def collect_coin(self):
+        self.score += 10
+        print(f"Score: {self.score}")
+
+class Enemy(Component):
+    """Simple bouncing enemy behavior"""
+
+    def __init__(self, speed=100):
+        super().__init__()
+        self.speed = speed
+        self.rigidbody = None
+        self.direction = Vector2(random.uniform(-1, 1), random.uniform(-1, 1)).normalized()
+
+    def start(self):
+        self.rigidbody = self.game_object.get_component(Rigidbody)
+        if self.rigidbody:
+            self.rigidbody.velocity = self.direction * self.speed
+
     def update(self, delta_time):
-        super().update(delta_time)
-        
+        if not self.rigidbody:
+            return
+
         # Bounce off screen edges
+        pos = self.game_object.transform.position
         engine = voidray.get_engine()
-        pos = self.transform.position
-        vel = self.rigidbody.velocity
-        
-        # Left/right walls
-        if pos.x <= 15:
-            pos.x = 15
-            vel.x = abs(vel.x)
-        elif pos.x >= engine.width - 15:
-            pos.x = engine.width - 15
-            vel.x = -abs(vel.x)
-        
-        # Top/bottom walls
-        if pos.y <= 15:
-            pos.y = 15
-            vel.y = abs(vel.y)
-        elif pos.y >= engine.height - 15:
-            pos.y = engine.height - 15
-            vel.y = -abs(vel.y)
-        
-        self.rigidbody.set_velocity(vel)
-    
-    def on_collision(self, other, collision_info):
-        """Handle enemy collisions."""
-        # Enemies bounce off each other
-        if "Enemy" in other.game_object.name:
-            # Simple collision response - push away
-            direction = (self.transform.position - 
-                        other.game_object.transform.position).normalized()
-            self.rigidbody.add_impulse(direction * 150)
-```
 
-STEP 4: CREATE COLLECTIBLE COINS
-================================
+        if pos.x <= 25 or pos.x >= engine.width - 25:
+            self.rigidbody.velocity.x *= -1
+        if pos.y <= 25 or pos.y >= engine.height - 25:
+            self.rigidbody.velocity.y *= -1
 
-Coins will be yellow circles that the player can collect:
+class GameScene(Scene):
+    """Main game scene"""
 
-```python
-class Coin(Sprite):
     def __init__(self):
-        super().__init__("Coin")
-        self.create_colored_circle(8, Color.YELLOW)
-        
-        # Add collision (no physics needed for coins)
-        self.collider = CircleCollider(8)
-        self.add_component(self.collider)
-        
-        # Animation variables
-        self.spin_speed = 180  # degrees per second
-        self.bob_speed = 3     # up/down movement speed
-        self.bob_amount = 5    # pixels to move up/down
-        self.time = 0
-        self.start_y = 0
-    
+        super().__init__()
+        self.player = None
+        self.coins = []
+        self.enemies = []
+        self.coin_collector = None
+
     def update(self, delta_time):
+        """Update scene and check collisions"""
         super().update(delta_time)
         
-        # Spinning and bobbing animation
-        self.time += delta_time
-        
-        # Rotate the coin
-        self.transform.rotation += self.spin_speed * delta_time
-        
-        # Bob up and down
-        if self.start_y == 0:
-            self.start_y = self.transform.position.y
-        
-        bob_offset = math.sin(self.time * self.bob_speed) * self.bob_amount
-        self.transform.position.y = self.start_y + bob_offset
+        # Safety check - ensure player exists
+        if not self.player:
+            return
+            
+        # Check collisions between player and coins
+        player_collider = self.player.get_component(BoxCollider)
+        if player_collider:
+            for coin in self.coins[:]:  # Use slice copy to safely modify during iteration
+                coin_collider = coin.get_component(BoxCollider)
+                if coin_collider and self._check_collision(player_collider, coin_collider):
+                    self.on_collision(self.player, coin)
+            
+            # Check collisions between player and enemies
+            for enemy in self.enemies:
+                enemy_collider = enemy.get_component(BoxCollider)
+                if enemy_collider and self._check_collision(player_collider, enemy_collider):
+                    self.on_collision(self.player, enemy)
     
-    def destroy(self):
-        """Called when coin is collected."""
-        # Add particle effect here if you want
-        super().destroy()
-```
+    def _check_collision(self, collider1, collider2):
+        """Simple AABB collision detection"""
+        if not collider1 or not collider2:
+            return False
+            
+        # Get positions and sizes
+        pos1 = collider1.game_object.transform.position
+        pos2 = collider2.game_object.transform.position
+        
+        # Get collider dimensions (assuming width/height attributes)
+        w1, h1 = getattr(collider1, 'width', 30), getattr(collider1, 'height', 30)
+        w2, h2 = getattr(collider2, 'width', 30), getattr(collider2, 'height', 30)
+        
+        # AABB collision check
+        return (pos1.x < pos2.x + w2 and
+                pos1.x + w1 > pos2.x and
+                pos1.y < pos2.y + h2 and
+                pos1.y + h1 > pos2.y)
 
-STEP 5: CREATE THE GAME SCENE
-=============================
-
-The game scene manages all objects and game state:
-
-```python
-class GameScene(Scene):
-    def __init__(self):
-        super().__init__("Game")
-        self.player = None
-        self.enemies = []
-        self.coins = []
-        self.game_over = False
-        self.coins_collected = 0
-        self.total_coins = COIN_COUNT
-    
     def on_enter(self):
         super().on_enter()
-        
+
         # Create player
-        self.player = Player()
-        self.player.transform.position = Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+        self.player = Sprite("Player")
+        self.player.create_colored_rect(30, 30, Color.BLUE)
+        self.player.transform.position = Vector2(400, 300)
+
+        # Add player components
+        player_rb = Rigidbody()
+        player_rb.friction = 0.8
+        self.player.add_component(player_rb)
+        self.player.add_component(BoxCollider(30, 30))
+        self.player.add_component(PlayerController(250))
+
+        self.coin_collector = CoinCollector()
+        self.player.add_component(self.coin_collector)
+
         self.add_object(self.player)
-        
-        # Create enemies
-        for i in range(ENEMY_COUNT):
-            enemy = Enemy()
-            # Place enemies randomly, but not too close to player
-            while True:
-                pos = Vector2(
-                    random.randint(50, SCREEN_WIDTH - 50),
-                    random.randint(50, SCREEN_HEIGHT - 50)
-                )
-                # Make sure enemy isn't too close to player start position
-                if pos.distance_to(self.player.transform.position) > 100:
-                    break
-            
-            enemy.transform.position = pos
-            self.enemies.append(enemy)
-            self.add_object(enemy)
-        
+
         # Create coins
-        for i in range(COIN_COUNT):
-            coin = Coin()
-            # Place coins randomly
+        for i in range(5):
+            coin = Sprite(f"Coin_{i}")
+            coin.create_colored_circle(15, Color.YELLOW)
             coin.transform.position = Vector2(
-                random.randint(30, SCREEN_WIDTH - 30),
-                random.randint(30, SCREEN_HEIGHT - 30)
+                random.randint(50, 750),
+                random.randint(50, 550)
             )
+            collider = BoxCollider(30, 30)
+            collider.is_trigger = True
+            coin.add_component(collider)
+            coin.add_tag("coin")
             self.coins.append(coin)
             self.add_object(coin)
-        
-        print("Collection Game Started!")
-        print("Use arrow keys to move, collect yellow coins, avoid red enemies!")
-    
-    def update(self, delta_time):
-        super().update(delta_time)
-        
-        if self.game_over:
-            return
-        
-        # Check for game over conditions
-        if self.player.health <= 0:
-            self.game_over = True
-            print(f"Game Over! Final Score: {self.player.score}")
-            print("Press R to restart or ESC to quit")
-        
-        # Check for victory
-        remaining_coins = len([obj for obj in self.game_objects if "Coin" in obj.name])
-        if remaining_coins == 0:
-            print(f"You Win! Final Score: {self.player.score}")
-            print("Press R to restart or ESC to quit")
-            self.game_over = True
-        
-        # Handle input
-        input_manager = voidray.get_engine().input_manager
-        
-        if input_manager.is_key_just_pressed(Keys.ESCAPE):
-            voidray.stop()
-        
-        if input_manager.is_key_just_pressed(Keys.R) and self.game_over:
-            # Restart game
-            self.restart_game()
-    
-    def restart_game(self):
-        """Restart the game."""
-        # Clear all objects
-        for obj in self.game_objects[:]:
-            obj.destroy()
-        
-        # Reset state
-        self.game_over = False
-        self.enemies.clear()
-        self.coins.clear()
-        
-        # Recreate everything
-        self.on_enter()
-    
+
+        # Create enemies
+        for i in range(3):
+            enemy = Sprite(f"Enemy_{i}")
+            enemy.create_colored_rect(25, 25, Color.RED)
+            enemy.transform.position = Vector2(
+                random.randint(100, 700),
+                random.randint(100, 500)
+            )
+
+            enemy_rb = Rigidbody()
+            enemy.add_component(enemy_rb)
+            enemy.add_component(BoxCollider(25, 25))
+            enemy.add_component(Enemy(random.randint(80, 150)))
+            enemy.add_tag("enemy")
+            self.enemies.append(enemy)
+            self.add_object(enemy)
+
+    def on_collision(self, obj1, obj2):
+        """Handle collisions between objects"""
+        # Player collecting coins
+        if (obj1 == self.player and obj2.has_tag("coin")) or \
+           (obj2 == self.player and obj1.has_tag("coin")):
+            coin = obj2 if obj1 == self.player else obj1
+            if coin in self.coins:
+                self.coin_collector.collect_coin()
+                self.remove_object(coin)
+                self.coins.remove(coin)
+
+                # Check win condition
+                if len(self.coins) == 0:
+                    print("You collected all coins! You win!")
+
+        # Player hitting enemies
+        elif (obj1 == self.player and obj2.has_tag("enemy")) or \
+             (obj2 == self.player and obj1.has_tag("enemy")):
+            print("Game Over! You hit an enemy!")
+            # Reset player position
+            self.player.transform.position = Vector2(400, 300)
+
     def render(self, renderer):
         super().render(renderer)
-        
+
         # Draw UI
-        renderer.draw_text("Collection Game", Vector2(10, 10), Color.WHITE, 24)
-        renderer.draw_text(f"Score: {self.player.score if self.player else 0}", 
-                          Vector2(10, 40), Color.YELLOW, 20)
-        renderer.draw_text(f"Health: {self.player.health if self.player else 0}", 
-                          Vector2(10, 65), Color.RED, 20)
-        
-        # Count remaining coins
-        coin_count = len([obj for obj in self.game_objects if "Coin" in obj.name])
-        renderer.draw_text(f"Coins Left: {coin_count}", 
-                          Vector2(10, 90), Color.YELLOW, 20)
-        
-        # Game over message
-        if self.game_over:
-            engine = voidray.get_engine()
-            center_x = engine.width // 2
-            center_y = engine.height // 2
-            
-            renderer.draw_text("GAME OVER", Vector2(center_x - 80, center_y - 20), 
-                              Color.RED, 32)
-            renderer.draw_text("Press R to Restart, ESC to Quit", 
-                              Vector2(center_x - 120, center_y + 20), Color.WHITE, 16)
-        
+        score_text = f"Score: {self.coin_collector.score if self.coin_collector else 0}"
+        renderer.draw_text(score_text, Vector2(10, 10), Color.WHITE, 24)
+
+        coins_left = len(self.coins)
+        coins_text = f"Coins Left: {coins_left}"
+        renderer.draw_text(coins_text, Vector2(10, 40), Color.WHITE, 24)
+
+        if coins_left == 0:
+            renderer.draw_text("YOU WIN! Press R to restart", Vector2(250, 300), Color.GREEN, 32)
+
         # Instructions
-        renderer.draw_text("Arrow keys to move, collect coins, avoid enemies", 
-                          Vector2(10, SCREEN_HEIGHT - 30), Color.LIGHT_GRAY, 14)
-        
-        # FPS counter
-        fps = voidray.get_engine().get_fps()
-        renderer.draw_text(f"FPS: {fps:.1f}", 
-                          Vector2(SCREEN_WIDTH - 80, 10), Color.CYAN, 16)
-```
-
-STEP 6: INITIALIZE THE GAME
-==========================
-
-Add the initialization function:
-
-```python
-def init_game():
-    """Initialize the game."""
-    print("Initializing Collection Game...")
-    
-    # Enable physics
-    engine = voidray.get_engine()
-    engine.physics_system.set_gravity(0)  # No gravity for this game
-    
-    # Create and set the game scene
-    game_scene = GameScene()
-    voidray.register_scene("game", game_scene)
-    voidray.set_scene("game")
-```
-
-STEP 7: PUT IT ALL TOGETHER
-==========================
-
-Your complete game should look like this:
-
-```python
-import voidray
-from voidray import Scene, Sprite, Vector2, Keys, BoxCollider, CircleCollider, Rigidbody
-from voidray.graphics.renderer import Color
-import random
-import math
-
-# Game configuration
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
-PLAYER_SPEED = 250
-ENEMY_COUNT = 4
-COIN_COUNT = 8
-
-# [Include all the classes we created above]
+        renderer.draw_text("Use WASD or Arrow Keys to move", Vector2(10, 570), Color.WHITE, 16)
+        renderer.draw_text("Collect yellow coins, avoid red enemies!", Vector2(10, 590), Color.WHITE, 16)
 
 def init_game():
-    print("Initializing Collection Game...")
-    engine = voidray.get_engine()
-    engine.physics_system.set_gravity(0)
-    
+    """Initialize the game"""
+    # Create and register the main scene
     game_scene = GameScene()
     voidray.register_scene("game", game_scene)
     voidray.set_scene("game")
 
 def main():
-    voidray.configure(SCREEN_WIDTH, SCREEN_HEIGHT, "Collection Game", 60)
+    """Main entry point"""
+    # Configure the engine
+    voidray.configure(800, 600, "VoidRay Tutorial Game", 60)
+
+    # Set initialization callback
     voidray.on_init(init_game)
+
+    # Start the engine
     voidray.start()
 
 if __name__ == "__main__":
     main()
-```
-
-WHAT YOU'VE LEARNED
-==================
-
-Congratulations! You've built a complete game that demonstrates:
-
-1. **Game Structure**: Proper use of scenes and game objects
-2. **Player Input**: Responsive keyboard controls
-3. **Physics**: Bouncing enemies with realistic movement
-4. **Collision Detection**: Player-enemy and player-coin interactions
-5. **Game State**: Score tracking, health system, win/lose conditions
-6. **UI Rendering**: On-screen text and game information
-7. **Game Loop**: Restart functionality
-
-NEXT STEPS
-==========
-
-Try extending your game with these features:
-
-1. **Power-ups**: Special coins that give temporary abilities
-2. **Levels**: Multiple scenes with increasing difficulty
-3. **Particle Effects**: Visual effects when collecting coins
-4. **Sound Effects**: Audio feedback for actions
-5. **Better Graphics**: Load image files instead of colored shapes
-6. **High Scores**: Save and display best scores
-7. **Different Enemy Types**: Enemies with unique behaviors
-
-The VoidRay engine makes it easy to add these features - check out the other documentation files for more advanced techniques!
