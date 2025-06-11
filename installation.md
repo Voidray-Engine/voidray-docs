@@ -51,7 +51,7 @@ If you're working with the source code:
 
 1. **Clone the repository**:
 ```bash
-git clone https://github.com/yourusername/voidray.git
+git clone https://github.com/Voidray-Engine/Voidray.git
 cd voidray
 ```
 
